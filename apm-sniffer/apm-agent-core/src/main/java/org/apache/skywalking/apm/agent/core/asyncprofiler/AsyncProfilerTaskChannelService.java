@@ -58,6 +58,7 @@ public class AsyncProfilerTaskChannelService implements BootService, Runnable {
             Command startCommand = Command.newBuilder()
                     .addArgs(KeyStringValuePair.newBuilder().setKey("Action").setValue("start"))
                     .addArgs(KeyStringValuePair.newBuilder().setKey("SerialNumber").setValue("1"))
+                    .addArgs(KeyStringValuePair.newBuilder().setKey("Format").setValue("jfr"))
                     .setCommand(AsyncProfilerTaskCommand.NAME)
                     .build();
             Commands startCommands = Commands.newBuilder()
@@ -74,6 +75,7 @@ public class AsyncProfilerTaskChannelService implements BootService, Runnable {
             Command stopCommand = Command.newBuilder()
                     .addArgs(KeyStringValuePair.newBuilder().setKey("Action").setValue("stop"))
                     .addArgs(KeyStringValuePair.newBuilder().setKey("SerialNumber").setValue("2"))
+                    .addArgs(KeyStringValuePair.newBuilder().setKey("Format").setValue("jfr"))
                     .setCommand(AsyncProfilerTaskCommand.NAME)
                     .build();
             Commands stopCommands = Commands.newBuilder()

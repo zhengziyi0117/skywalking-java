@@ -208,7 +208,10 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
         builder.addArgs(KeyStringValuePair.newBuilder().setKey("Action").setValue(action))
                 .addArgs(KeyStringValuePair.newBuilder().setKey("ActionArg").setValue(actionArg))
                 .addArgs(KeyStringValuePair.newBuilder().setKey("Event").setValue(event))
-                .addArgs(KeyStringValuePair.newBuilder().setKey("Alloc").setValue(alloc));
+                .addArgs(KeyStringValuePair.newBuilder().setKey("Alloc").setValue(alloc))
+                .addArgs(KeyStringValuePair.newBuilder().setKey("File").setValue(file))
+                .addArgs(KeyStringValuePair.newBuilder().setKey("Format").setValue(format))
+                .addArgs(KeyStringValuePair.newBuilder().setKey("Duration").setValue(String.valueOf(duration)));
         return builder;
     }
 
@@ -221,6 +224,9 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
         String actionArg = null;
         String event = null;
         String alloc = null;
+        String file = null;
+        String format = null;
+        Long duration = null;
 
         for (final KeyStringValuePair pair : args) {
             if ("SerialNumber".equals(pair.getKey())) {
@@ -233,6 +239,12 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
                 event = pair.getValue();
             } else if ("Alloc".equals(pair.getKey())) {
                 alloc = pair.getValue();
+            } else if ("File".equals(pair.getKey())) {
+                file = pair.getValue();
+            } else if ("Format".equals(pair.getKey())) {
+                format = pair.getValue();
+            } else if ("Duration".equals(pair.getKey())) {
+                duration = Long.parseLong(pair.getValue());
             }
         }
 
@@ -241,6 +253,9 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
         asyncProfilerTaskCommand.setActionArg(actionArg);
         asyncProfilerTaskCommand.setEvent(event);
         asyncProfilerTaskCommand.setAlloc(alloc);
+        asyncProfilerTaskCommand.setFile(file);
+        asyncProfilerTaskCommand.setFormat(format);
+        asyncProfilerTaskCommand.setDuration(duration);
         return asyncProfilerTaskCommand;
     }
 

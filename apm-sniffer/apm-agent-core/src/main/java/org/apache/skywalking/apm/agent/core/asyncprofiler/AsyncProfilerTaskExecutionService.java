@@ -18,28 +18,38 @@
 
 package org.apache.skywalking.apm.agent.core.asyncprofiler;
 
+import io.pyroscope.labels.io.pyroscope.PyroscopeAsyncProfiler;
 import io.pyroscope.one.profiler.AsyncProfiler;
 import org.apache.skywalking.apm.agent.core.boot.BootService;
 import org.apache.skywalking.apm.agent.core.boot.DefaultImplementor;
 import org.apache.skywalking.apm.agent.core.boot.DefaultNamedThreadFactory;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
+import org.apache.skywalking.apm.util.StringUtil;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
+import java.util.Objects;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @DefaultImplementor
 public class AsyncProfilerTaskExecutionService implements BootService {
 
     private static final ILog LOGGER = LogManager.getLogger(AsyncProfilerTaskChannelService.class);
 
-    //TODO use local so file for debug
-    private static final AsyncProfiler ASYNC_PROFILER = AsyncProfiler.getInstance("/opt/async-profiler/lib/libasyncProfiler.so");
+    private static final AsyncProfiler ASYNC_PROFILER = PyroscopeAsyncProfiler.getAsyncProfiler();
 
     // profile executor thread pool, only running one thread
-    private final static ExecutorService ASYNC_PROFILE_EXECUTOR = Executors.newSingleThreadExecutor(
+    private final static ScheduledExecutorService ASYNC_PROFILE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
             new DefaultNamedThreadFactory("ASYNC-PROFILING-TASK"));
+
+    private volatile ProfileState status = ProfileState.STOP;
+
+    private enum ProfileState {
+        PROFILING,
+        STOP;
+    }
 
     public void processAsyncProfilerTask(AsyncProfilerTask task) {
         // add task to list
@@ -47,11 +57,31 @@ public class AsyncProfilerTaskExecutionService implements BootService {
 //        asyncProfileTaskList.add(task);
         ASYNC_PROFILE_EXECUTOR.execute(() -> {
             try {
-                task.process(ASYNC_PROFILER);
+                if (status == ProfileState.PROFILING) {
+                    // stop pre task
+                    status = ProfileState.STOP;
+                    // todo stop pre task
+                }
+                if (Objects.isNull(task.getDuration())) {
+                    LOGGER.error("async profile task must need duration");
+                }
+                String result = task.process(ASYNC_PROFILER);
+
+                LOGGER.info("AsyncProfilerTask executor result:{}", result);
+//                PROFILE_TASK_SCHEDULE.schedule(() -> processProfileTask(task), timeToProcessMills, TimeUnit.MILLISECONDS);
+                ASYNC_PROFILE_EXECUTOR.schedule(() -> stopAsyncProfile(task), task.getDuration(), TimeUnit.MICROSECONDS);
             } catch (IOException e) {
                 LOGGER.error("AsyncProfilerTask executor error:" + e.getMessage(), e);
             }
         });
+    }
+
+    private void stopAsyncProfile(AsyncProfilerTask task) {
+        // execute stop task
+
+        status = ProfileState.STOP;
+        // upload file
+
     }
 
     @Override
