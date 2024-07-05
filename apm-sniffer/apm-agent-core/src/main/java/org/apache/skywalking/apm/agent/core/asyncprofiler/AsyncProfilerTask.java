@@ -19,110 +19,38 @@
 package org.apache.skywalking.apm.agent.core.asyncprofiler;
 
 import io.pyroscope.one.profiler.AsyncProfiler;
-import io.pyroscope.one.profiler.Counter;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
-import org.apache.skywalking.apm.network.trace.component.command.AsyncProfilerTaskCommand;
 
 import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class AsyncProfilerTask {
     private static final ILog LOGGER = LogManager.getLogger(AsyncProfilerTask.class);
-    private static final String JFR = "jfr";
-
-    private AsyncProfilerTaskCommand.ProfilerAction action;
-    private String actionArg;
-
     /**
-     * which event to trace (cpu, wall, cache-misses, etc.)
+     * task id
      */
-    private String event;
-
+    private String taskId;
     /**
-     * profile allocations with BYTES interval
-     * according to async-profiler README, alloc may contains non-numeric characters
+     * execArgument from oap server
      */
-    private String alloc;
-
-    /**
-     * build allocation profile from live objects only
-     */
-    private boolean live;
-
-    /**
-     * profile contended locks longer than DURATION ns
-     * according to async-profiler README, alloc may contains non-numeric characters
-     */
-    private String lock;
-
-    /**
-     * start Java Flight Recording with the given config along with the profiler
-     */
-    private String jfrsync;
-
-    /**
-     * output file name for dumping
-     */
-    private String file;
-
-    /**
-     * output file format, default value is html.
-     */
-    private String format;
-
-    /**
-     * sampling interval in ns (default: 10'000'000, i.e. 10 ms)
-     */
-    private Long interval;
-
+    private String execArgs;
     /**
      * run profiling for duration seconds
      */
-    private Long duration;
-
-    private File tempJFRFile;
-
-    private String getExecuteArgs() throws IOException {
-        StringBuilder sb = new StringBuilder();
-        final char comma = ',';
-
-        sb.append("start");
-
-        if (this.event != null) {
-            sb.append("event=").append(this.event).append(comma);
-        }
-        if (this.alloc != null) {
-            sb.append("alloc=").append(this.alloc).append(comma);
-        }
-        if (this.live) {
-            sb.append("live").append(comma);
-        }
-        if (this.lock != null) {
-            sb.append("lock=").append(this.lock).append(comma);
-        }
-        if (this.interval != null) {
-            sb.append("interval=").append(this.interval).append(comma);
-        }
-        if (this.format != null) {
-            sb.append(this.format).append(comma);
-            if (JFR.equals(format)) {
-                // flight recorder is built on top of a file descriptor, so we need a file.
-                tempJFRFile = File.createTempFile("skywalking", ".jfr");
-                tempJFRFile.deleteOnExit();
-            }
-        }
-        if (this.file != null) {
-            sb.append("file=").append(this.file).append(comma);
-        }
-        return sb.toString();
-    }
+    private int duration;
+    /**
+     * run profiling for duration seconds
+     */
+    private long createTime;
+    /**
+     * temp File
+     */
+    private Path tempFile;
 
     private static String execute(AsyncProfiler asyncProfiler, String arg)
             throws IllegalArgumentException, IOException {
@@ -134,56 +62,76 @@ public class AsyncProfilerTask {
         return result;
     }
 
-    private String start(AsyncProfiler asyncProfiler) throws IOException {
-        String executeArgs = getExecuteArgs();
-        return execute(asyncProfiler, executeArgs);
+    public String start(AsyncProfiler asyncProfiler) throws IOException {
+        tempFile = Files.createFile(Paths.get("/Users/bytedance/IdeaProjects/skywalking-java/skywalking-output/" + taskId));
+        execArgs = execArgs + "file=" + tempFile.toAbsolutePath();
+        return execute(asyncProfiler, execArgs);
     }
 
     /**
      * stop async-profiler and dump profile data
      */
-    private byte[] processStop(AsyncProfiler asyncProfiler) throws IOException {
+    public byte[] stop(AsyncProfiler asyncProfiler) throws IOException {
+        LOGGER.info("async profiler process stop and dump file");
         asyncProfiler.stop();
-        final byte[] data;
-        if (format.equals(JFR)) {
-            data = dumpJFR();
-        } else {
-            data = asyncProfiler.dumpCollapsed(Counter.SAMPLES).getBytes(StandardCharsets.UTF_8);
-        }
-        return data;
+        // todo now only JFR
+        return dumpJFR();
+//        final byte[] data;
+//        if (format.equals(JFR)) {
+//            data = dumpJFR();
+//        } else {
+//            data = asyncProfiler.dumpCollapsed(Counter.SAMPLES).getBytes(StandardCharsets.UTF_8);
+//        }
+//        return data;
     }
 
-    private byte[] dumpJFR() {
-        try {
-            byte[] bytes = new byte[(int) tempJFRFile.length()];
-            try (DataInputStream ds = new DataInputStream(new FileInputStream(tempJFRFile))) {
-                ds.readFully(bytes);
-            }
-            return bytes;
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
+    private byte[] dumpJFR() throws IOException {
+        File file = tempFile.toFile();
+        file.deleteOnExit();
+        byte[] bytes = new byte[(int) file.length()];
+        try (DataInputStream ds = new DataInputStream(Files.newInputStream(file.toPath()))) {
+            ds.readFully(bytes);
         }
+        return bytes;
     }
 
-    /**
-     * This method should only be called when {@code this.file == null} is true.
-     */
-    private String outputFileExt() {
-        String fileExt = "";
-        if (this.format == null) {
-            fileExt = "html";
-        } else if (this.format.startsWith("flat") || this.format.startsWith("traces")
-                || this.format.equals("collapsed")) {
-            fileExt = "txt";
-        } else if (this.format.equals("flamegraph") || this.format.equals("tree")) {
-            fileExt = "html";
-        } else if (this.format.equals(JFR)) {
-            fileExt = JFR;
-        } else {
-            // illegal -o option makes async-profiler use flat
-            fileExt = "txt";
-        }
-        return fileExt;
+    public void setExecArgs(String execArgs) {
+        this.execArgs = execArgs;
     }
 
+    public void setDuration(int duration) {
+        this.duration = duration;
+    }
+
+    public void setTempFile(Path tempFile) {
+        this.tempFile = tempFile;
+    }
+
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
+    }
+
+    public void setCreateTime(long createTime) {
+        this.createTime = createTime;
+    }
+
+    public String getExecArgs() {
+        return execArgs;
+    }
+
+    public int getDuration() {
+        return duration;
+    }
+
+    public Path getTempFile() {
+        return tempFile;
+    }
+
+    public String getTaskId() {
+        return taskId;
+    }
+
+    public long getCreateTime() {
+        return createTime;
+    }
 }

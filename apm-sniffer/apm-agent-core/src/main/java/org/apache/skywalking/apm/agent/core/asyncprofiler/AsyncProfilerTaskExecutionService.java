@@ -23,14 +23,15 @@ import io.pyroscope.one.profiler.AsyncProfiler;
 import org.apache.skywalking.apm.agent.core.boot.BootService;
 import org.apache.skywalking.apm.agent.core.boot.DefaultImplementor;
 import org.apache.skywalking.apm.agent.core.boot.DefaultNamedThreadFactory;
+import org.apache.skywalking.apm.agent.core.boot.ServiceManager;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
-import org.apache.skywalking.apm.util.StringUtil;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @DefaultImplementor
@@ -40,36 +41,42 @@ public class AsyncProfilerTaskExecutionService implements BootService {
 
     private static final AsyncProfiler ASYNC_PROFILER = PyroscopeAsyncProfiler.getAsyncProfiler();
 
+    private static final String SUCCESS_RESULT = "Profiling started\n";
+
     // profile executor thread pool, only running one thread
     private final static ScheduledExecutorService ASYNC_PROFILE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
             new DefaultNamedThreadFactory("ASYNC-PROFILING-TASK"));
 
-    private volatile ProfileState status = ProfileState.STOP;
+    // last command create time, use to next query task list
+    private volatile long lastCommandCreateTime = -1;
 
-    private enum ProfileState {
-        PROFILING,
-        STOP;
-    }
+    // task schedule future
+    private volatile ScheduledFuture<?> scheduledFuture;
+    private volatile AsyncProfilerTask preAsyncProfilerTask;
 
     public void processAsyncProfilerTask(AsyncProfilerTask task) {
+        if (task.getCreateTime() > lastCommandCreateTime) {
+            lastCommandCreateTime = task.getCreateTime();
+        }
+        LOGGER.info("add async profiler task: {}", task.getTaskId());
         // add task to list
-        LOGGER.info("add async profiler task: {}", task);
-//        asyncProfileTaskList.add(task);
         ASYNC_PROFILE_EXECUTOR.execute(() -> {
             try {
-                if (status == ProfileState.PROFILING) {
+                if (Objects.nonNull(scheduledFuture) && !scheduledFuture.isDone()) {
+                    scheduledFuture.cancel(true);
                     // stop pre task
-                    status = ProfileState.STOP;
-                    // todo stop pre task
+                    stopAsyncProfile(preAsyncProfilerTask);
+                    preAsyncProfilerTask = null;
                 }
-                if (Objects.isNull(task.getDuration())) {
-                    LOGGER.error("async profile task must need duration");
+                String result = task.start(ASYNC_PROFILER);
+                if (!SUCCESS_RESULT.equals(result)) {
+                    LOGGER.error("AsyncProfilerTask start fail result:" + result);
+                    return;
                 }
-                String result = task.process(ASYNC_PROFILER);
-
-                LOGGER.info("AsyncProfilerTask executor result:{}", result);
-//                PROFILE_TASK_SCHEDULE.schedule(() -> processProfileTask(task), timeToProcessMills, TimeUnit.MILLISECONDS);
-                ASYNC_PROFILE_EXECUTOR.schedule(() -> stopAsyncProfile(task), task.getDuration(), TimeUnit.MICROSECONDS);
+                preAsyncProfilerTask = task;
+                scheduledFuture = ASYNC_PROFILE_EXECUTOR.schedule(
+                        () -> stopAsyncProfile(task), task.getDuration(), TimeUnit.SECONDS
+                );
             } catch (IOException e) {
                 LOGGER.error("AsyncProfilerTask executor error:" + e.getMessage(), e);
             }
@@ -77,11 +84,20 @@ public class AsyncProfilerTaskExecutionService implements BootService {
     }
 
     private void stopAsyncProfile(AsyncProfilerTask task) {
-        // execute stop task
+        try {
+            // execute stop task
+            byte[] data = task.stop(ASYNC_PROFILER);
+            // upload file
+            AsyncProfilerDataSender dataSender = ServiceManager.INSTANCE.findService(AsyncProfilerDataSender.class);
+            dataSender.send(task, data);
+        } catch (Exception e) {
+            LOGGER.error("stop async profiler task error", e);
+            return;
+        }
+    }
 
-        status = ProfileState.STOP;
-        // upload file
-
+    public long getLastCommandCreateTime() {
+        return lastCommandCreateTime;
     }
 
     @Override

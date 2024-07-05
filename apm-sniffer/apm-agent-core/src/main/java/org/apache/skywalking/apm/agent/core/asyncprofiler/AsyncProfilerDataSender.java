@@ -1,0 +1,118 @@
+package org.apache.skywalking.apm.agent.core.asyncprofiler;
+
+import com.google.protobuf.ByteString;
+import io.grpc.Channel;
+import io.grpc.stub.StreamObserver;
+import org.apache.skywalking.apm.agent.core.boot.BootService;
+import org.apache.skywalking.apm.agent.core.boot.DefaultImplementor;
+import org.apache.skywalking.apm.agent.core.boot.ServiceManager;
+import org.apache.skywalking.apm.agent.core.conf.Config;
+import org.apache.skywalking.apm.agent.core.logging.api.ILog;
+import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
+import org.apache.skywalking.apm.agent.core.profile.ProfileSnapshotSender;
+import org.apache.skywalking.apm.agent.core.remote.GRPCChannelListener;
+import org.apache.skywalking.apm.agent.core.remote.GRPCChannelManager;
+import org.apache.skywalking.apm.agent.core.remote.GRPCChannelStatus;
+import org.apache.skywalking.apm.agent.core.remote.GRPCStreamServiceStatus;
+import org.apache.skywalking.apm.network.common.v3.Commands;
+import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerData;
+import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerMetaData;
+import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerTaskGrpc;
+
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import static org.apache.skywalking.apm.agent.core.conf.Config.Collector.GRPC_UPSTREAM_TIMEOUT;
+
+@DefaultImplementor
+public class AsyncProfilerDataSender implements BootService, GRPCChannelListener {
+    private static final ILog LOGGER = LogManager.getLogger(ProfileSnapshotSender.class);
+    private static final int DATA_CHUNK_SIZE = 1024 * 1024;
+
+    private volatile GRPCChannelStatus status = GRPCChannelStatus.DISCONNECT;
+
+    private volatile AsyncProfilerTaskGrpc.AsyncProfilerTaskStub asyncProfilerTaskStub;
+
+    @Override
+    public void prepare() throws Throwable {
+        ServiceManager.INSTANCE.findService(GRPCChannelManager.class).addChannelListener(this);
+    }
+
+    @Override
+    public void boot() throws Throwable {
+
+    }
+
+    @Override
+    public void onComplete() throws Throwable {
+
+    }
+
+    @Override
+    public void shutdown() throws Throwable {
+
+    }
+
+    @Override
+    public void statusChanged(GRPCChannelStatus status) {
+        if (GRPCChannelStatus.CONNECTED.equals(status)) {
+            Channel channel = ServiceManager.INSTANCE.findService(GRPCChannelManager.class).getChannel();
+            asyncProfilerTaskStub = AsyncProfilerTaskGrpc.newStub(channel);
+        } else {
+            asyncProfilerTaskStub = null;
+        }
+        this.status = status;
+    }
+
+    public void send(AsyncProfilerTask task, byte[] data) {
+        if (status != GRPCChannelStatus.CONNECTED || Objects.isNull(data) || data.length == 0) {
+            return;
+        }
+        final GRPCStreamServiceStatus status = new GRPCStreamServiceStatus(false);
+        StreamObserver<AsyncProfilerData> dataStreamObserver = asyncProfilerTaskStub.withDeadlineAfter(
+                GRPC_UPSTREAM_TIMEOUT, TimeUnit.SECONDS
+        ).collect(new StreamObserver<Commands>() {
+            @Override
+            public void onNext(Commands value) {
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                status.finished();
+                if (LOGGER.isErrorEnable()) {
+                    LOGGER.error(
+                            t, "Send async profiler task data to collector fail with a grpc internal exception."
+                    );
+                }
+                ServiceManager.INSTANCE.findService(GRPCChannelManager.class).reportError(t);
+            }
+
+            @Override
+            public void onCompleted() {
+                status.finished();
+            }
+        });
+        AsyncProfilerMetaData metaData = AsyncProfilerMetaData.newBuilder()
+                .setService(Config.Agent.SERVICE_NAME)
+                .setServiceInstance(Config.Agent.INSTANCE_NAME)
+                .setTaskId(task.getTaskId())
+                .setExecutionArgs(task.getExecArgs())
+                .build();
+        AsyncProfilerData asyncProfilerData = AsyncProfilerData.newBuilder().setMetaData(metaData).build();
+        dataStreamObserver.onNext(asyncProfilerData);
+        // send bin data
+        int idx = 0;
+        int len = data.length;
+        do {
+            int size = Math.min(DATA_CHUNK_SIZE, len - idx);
+            asyncProfilerData = AsyncProfilerData.newBuilder()
+                    .setContent(ByteString.copyFrom(data, idx, size))
+                    .build();
+            dataStreamObserver.onNext(asyncProfilerData);
+            idx += DATA_CHUNK_SIZE;
+        } while (idx < len);
+
+        dataStreamObserver.onCompleted();
+        status.wait4Finish();
+    }
+}

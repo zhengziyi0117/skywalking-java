@@ -38,3 +38,4 @@ org.apache.skywalking.apm.agent.core.remote.EventReportServiceClient
 org.apache.skywalking.apm.agent.core.ServiceInstanceGenerator
 org.apache.skywalking.apm.agent.core.asyncprofiler.AsyncProfilerTaskExecutionService
 org.apache.skywalking.apm.agent.core.asyncprofiler.AsyncProfilerTaskChannelService
+org.apache.skywalking.apm.agent.core.asyncprofiler.AsyncProfilerDataSender

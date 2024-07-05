@@ -18,6 +18,7 @@
 
 package org.apache.skywalking.apm.agent.core.asyncprofiler;
 
+import io.grpc.Channel;
 import org.apache.skywalking.apm.agent.core.boot.BootService;
 import org.apache.skywalking.apm.agent.core.boot.DefaultImplementor;
 import org.apache.skywalking.apm.agent.core.boot.DefaultNamedThreadFactory;
@@ -26,27 +27,29 @@ import org.apache.skywalking.apm.agent.core.commands.CommandService;
 import org.apache.skywalking.apm.agent.core.conf.Config;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
+import org.apache.skywalking.apm.agent.core.remote.GRPCChannelListener;
+import org.apache.skywalking.apm.agent.core.remote.GRPCChannelManager;
 import org.apache.skywalking.apm.agent.core.remote.GRPCChannelStatus;
-import org.apache.skywalking.apm.network.common.v3.Command;
 import org.apache.skywalking.apm.network.common.v3.Commands;
-import org.apache.skywalking.apm.network.common.v3.KeyStringValuePair;
-import org.apache.skywalking.apm.network.trace.component.command.AsyncProfilerTaskCommand;
+import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfileTaskCommandQuery;
+import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerTaskGrpc;
 import org.apache.skywalking.apm.util.RunnableWithExceptionProtection;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * TODO <p>add receive grpc command<p/>
- * now just debug AsyncProfilerTask
- */
+import static org.apache.skywalking.apm.agent.core.conf.Config.Collector.GRPC_UPSTREAM_TIMEOUT;
+
+
 @DefaultImplementor
-public class AsyncProfilerTaskChannelService implements BootService, Runnable {
+public class AsyncProfilerTaskChannelService implements BootService, Runnable, GRPCChannelListener {
     private static final ILog LOGGER = LogManager.getLogger(AsyncProfilerTaskChannelService.class);
 
     // channel status
     private volatile GRPCChannelStatus status = GRPCChannelStatus.DISCONNECT;
+
+    private volatile AsyncProfilerTaskGrpc.AsyncProfilerTaskBlockingStub asyncProfilerTaskBlockingStub;
 
     // query task list schedule
     private volatile ScheduledFuture<?> getTaskListFuture;
@@ -55,41 +58,33 @@ public class AsyncProfilerTaskChannelService implements BootService, Runnable {
     public void run() {
         if (status == GRPCChannelStatus.CONNECTED) {
             // test start command and 10s after put stop command
-            Command startCommand = Command.newBuilder()
-                    .addArgs(KeyStringValuePair.newBuilder().setKey("Action").setValue("start"))
-                    .addArgs(KeyStringValuePair.newBuilder().setKey("SerialNumber").setValue("1"))
-                    .addArgs(KeyStringValuePair.newBuilder().setKey("Format").setValue("jfr"))
-                    .setCommand(AsyncProfilerTaskCommand.NAME)
+            long lastCommandCreateTime = ServiceManager.INSTANCE
+                    .findService(AsyncProfilerTaskExecutionService.class).getLastCommandCreateTime();
+            AsyncProfileTaskCommandQuery query = AsyncProfileTaskCommandQuery.newBuilder()
+                    .setServiceInstance(Config.Agent.INSTANCE_NAME)
+                    .setService(Config.Agent.SERVICE_NAME)
+                    .setLastCommandTime(lastCommandCreateTime)
                     .build();
-            Commands startCommands = Commands.newBuilder()
-                    .addCommands(startCommand)
-                    .build();
-            ServiceManager.INSTANCE.findService(CommandService.class).receiveCommand(startCommands);
-
-            try {
-                Thread.sleep(10000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            Command stopCommand = Command.newBuilder()
-                    .addArgs(KeyStringValuePair.newBuilder().setKey("Action").setValue("stop"))
-                    .addArgs(KeyStringValuePair.newBuilder().setKey("SerialNumber").setValue("2"))
-                    .addArgs(KeyStringValuePair.newBuilder().setKey("Format").setValue("jfr"))
-                    .setCommand(AsyncProfilerTaskCommand.NAME)
-                    .build();
-            Commands stopCommands = Commands.newBuilder()
-                    .addCommands(stopCommand)
-                    .build();
-            ServiceManager.INSTANCE.findService(CommandService.class).receiveCommand(stopCommands);
-
-            status = GRPCChannelStatus.DISCONNECT;
+            Commands commands = asyncProfilerTaskBlockingStub.withDeadlineAfter(GRPC_UPSTREAM_TIMEOUT, TimeUnit.SECONDS)
+                    .getAsyncProfileTaskCommands(query);
+            ServiceManager.INSTANCE.findService(CommandService.class).receiveCommand(commands);
         }
     }
 
     @Override
+    public void statusChanged(GRPCChannelStatus status) {
+        if (GRPCChannelStatus.CONNECTED.equals(status)) {
+            Channel channel = ServiceManager.INSTANCE.findService(GRPCChannelManager.class).getChannel();
+            asyncProfilerTaskBlockingStub = AsyncProfilerTaskGrpc.newBlockingStub(channel);
+        } else {
+            asyncProfilerTaskBlockingStub = null;
+        }
+        this.status = status;
+    }
+
+    @Override
     public void prepare() throws Throwable {
-        status = GRPCChannelStatus.CONNECTED;
+        ServiceManager.INSTANCE.findService(GRPCChannelManager.class).addChannelListener(this);
     }
 
     @Override
