@@ -17,7 +17,7 @@ metrics based on the tracing data.
   * [Jetty Server](http://www.eclipse.org/jetty/) 9.x -> 11.x
   * [Spring WebFlux](https://docs.spring.io/spring/docs/current/spring-framework-reference/web-reactive.html) 5.x (Optional¹) -> 6.x (Optional¹)
   * [Undertow](http://undertow.io/)  1.3.0.Final -> 2.0.27.Final
-  * [RESTEasy](https://resteasy.github.io/)  3.1.0.Final -> 6.2.4.Final
+  * [RESTEasy](https://resteasy.dev/)  3.1.0.Final -> 6.2.4.Final
   * [Play Framework](https://www.playframework.com/) 2.6.x -> 2.8.x
   * [Light4J Microservices Framework](https://doc.networknt.com/) 1.6.x -> 2.x
   * [Netty SocketIO](https://github.com/mrniko/netty-socketio) 1.x
@@ -26,6 +26,7 @@ metrics based on the tracing data.
   * [Grizzly](https://github.com/eclipse-ee4j/grizzly) 2.3.x -> 4.x
   * [WebSphere Liberty](https://github.com/OpenLiberty/open-liberty) 23.x
   * [Netty HTTP](https://github.com/netty/netty) 4.1.x (Optional²)
+  * [Solon](https://github.com/opensolon/solon) 2.7.x -> 2.8.x
 * HTTP Client
   * [Feign](https://github.com/OpenFeign/feign) 9.x
   * [Netflix Spring Cloud Feign](https://github.com/spring-cloud/spring-cloud-openfeign) 1.1.x -> 2.x

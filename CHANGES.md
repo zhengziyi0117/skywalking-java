@@ -17,6 +17,12 @@ Release Notes.
 * Support for showing batch command details and ignoring PING commands in Redisson plugin.
 * Fix peer value of Master-Slave mode in Redisson plugin.
 * Support for tracing the callbacks of asynchronous methods in elasticsearch-6.x-plugin/elasticsearch-7.x-plugin.
+* Fixed the invalid issue in the isInterface method in PluginFinder.
+* Fix the opentracing toolkit SPI config
+* Improve 4x performance of ContextManagerExtendService.createTraceContext()
+* Add a plugin that supports the Solon framework.
+* Fixed issues in the MySQL component where the executeBatch method could result in empty SQL statements .
+
 
 All issues and pull requests are [here](https://github.com/apache/skywalking/milestone/213?closed=1)
 
