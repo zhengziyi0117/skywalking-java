@@ -19,6 +19,8 @@ import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerD
 import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerMetaData;
 import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerTaskGrpc;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -64,8 +66,8 @@ public class AsyncProfilerDataSender implements BootService, GRPCChannelListener
         this.status = status;
     }
 
-    public void send(AsyncProfilerTask task, byte[] data) {
-        if (status != GRPCChannelStatus.CONNECTED || Objects.isNull(data) || data.length == 0) {
+    public void send(AsyncProfilerTask task, InputStream fileDataInputStream) throws IOException {
+        if (status != GRPCChannelStatus.CONNECTED || Objects.isNull(fileDataInputStream)) {
             return;
         }
         final GRPCStreamServiceStatus status = new GRPCStreamServiceStatus(false);
@@ -96,22 +98,18 @@ public class AsyncProfilerDataSender implements BootService, GRPCChannelListener
                 .setService(Config.Agent.SERVICE_NAME)
                 .setServiceInstance(Config.Agent.INSTANCE_NAME)
                 .setTaskId(task.getTaskId())
-                .setExecutionArgs(task.getExecArgs())
                 .build();
         AsyncProfilerData asyncProfilerData = AsyncProfilerData.newBuilder().setMetaData(metaData).build();
         dataStreamObserver.onNext(asyncProfilerData);
         // send bin data
-        int idx = 0;
-        int len = data.length;
-        do {
-            int size = Math.min(DATA_CHUNK_SIZE, len - idx);
+        byte[] data = new byte[DATA_CHUNK_SIZE];
+        int byteRead;
+        while ((byteRead = fileDataInputStream.read()) != -1) {
             asyncProfilerData = AsyncProfilerData.newBuilder()
-                    .setContent(ByteString.copyFrom(data, idx, size))
+                    .setContent(ByteString.copyFrom(data, 0, byteRead))
                     .build();
             dataStreamObserver.onNext(asyncProfilerData);
-            idx += DATA_CHUNK_SIZE;
-        } while (idx < len);
-
+        }
         dataStreamObserver.onCompleted();
         status.wait4Finish();
     }

@@ -21,10 +21,11 @@ package org.apache.skywalking.apm.agent.core.asyncprofiler;
 import io.pyroscope.one.profiler.AsyncProfiler;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
+import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerDataFormatType;
 
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,18 +53,18 @@ public class AsyncProfilerTask {
      */
     private Path tempFile;
 
+    private AsyncProfilerDataFormatType dataFormat;
+
     private static String execute(AsyncProfiler asyncProfiler, String arg)
             throws IllegalArgumentException, IOException {
         LOGGER.info("async profiler execute arg:{}", arg);
         String result = asyncProfiler.execute(arg);
-        if (!result.endsWith("\n")) {
-            result += "\n";
-        }
-        return result;
+        return result.trim();
     }
 
     public String start(AsyncProfiler asyncProfiler) throws IOException {
-        tempFile = Files.createFile(Paths.get("/Users/bytedance/IdeaProjects/skywalking-java/skywalking-output/" + taskId));
+
+        tempFile = Files.createFile(Paths.get("/Users/bytedance/IdeaProjects/skywalking-java/skywalking-output/" + taskId, ""));
         execArgs = execArgs + "file=" + tempFile.toAbsolutePath();
         return execute(asyncProfiler, execArgs);
     }
@@ -71,28 +72,37 @@ public class AsyncProfilerTask {
     /**
      * stop async-profiler and dump profile data
      */
-    public byte[] stop(AsyncProfiler asyncProfiler) throws IOException {
+    public InputStream stop(AsyncProfiler asyncProfiler) throws IOException {
         LOGGER.info("async profiler process stop and dump file");
         asyncProfiler.stop();
-        // todo now only JFR
-        return dumpJFR();
-//        final byte[] data;
-//        if (format.equals(JFR)) {
-//            data = dumpJFR();
-//        } else {
-//            data = asyncProfiler.dumpCollapsed(Counter.SAMPLES).getBytes(StandardCharsets.UTF_8);
-//        }
-//        return data;
+//        return dumpJFR();
+        if (AsyncProfilerDataFormatType.JFR.equals(dataFormat)) {
+            return getJFRInputStream();
+        } else if (AsyncProfilerDataFormatType.HTML.equals(dataFormat)) {
+            return null;
+        } else {
+            return null;
+        }
     }
 
-    private byte[] dumpJFR() throws IOException {
+    private String getFileExtension() {
+        switch (dataFormat) {
+            case JFR:
+                return ".jfr";
+            case HTML:
+                return ".html";
+            default:
+                return ".html";
+        }
+    }
+
+    /**
+     * need manually close
+     */
+    private InputStream getJFRInputStream() throws IOException {
         File file = tempFile.toFile();
         file.deleteOnExit();
-        byte[] bytes = new byte[(int) file.length()];
-        try (DataInputStream ds = new DataInputStream(Files.newInputStream(file.toPath()))) {
-            ds.readFully(bytes);
-        }
-        return bytes;
+        return Files.newInputStream(file.toPath());
     }
 
     public void setExecArgs(String execArgs) {
@@ -113,6 +123,14 @@ public class AsyncProfilerTask {
 
     public void setCreateTime(long createTime) {
         this.createTime = createTime;
+    }
+
+    public void setDataFormat(AsyncProfilerDataFormatType dataFormat) {
+        this.dataFormat = dataFormat;
+    }
+
+    public AsyncProfilerDataFormatType getDataFormat() {
+        return this.dataFormat;
     }
 
     public String getExecArgs() {
