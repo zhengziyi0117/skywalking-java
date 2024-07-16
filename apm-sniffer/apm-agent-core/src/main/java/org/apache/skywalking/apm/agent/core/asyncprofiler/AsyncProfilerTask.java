@@ -22,6 +22,7 @@ import io.pyroscope.one.profiler.AsyncProfiler;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
 import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerDataFormatType;
+import org.apache.skywalking.apm.util.StringUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.nio.file.Paths;
 
 public class AsyncProfilerTask {
     private static final ILog LOGGER = LogManager.getLogger(AsyncProfilerTask.class);
+    private static final String COMMA = ",";
     /**
      * task id
      */
@@ -55,34 +57,38 @@ public class AsyncProfilerTask {
 
     private AsyncProfilerDataFormatType dataFormat;
 
-    private static String execute(AsyncProfiler asyncProfiler, String arg)
+    private static String execute(AsyncProfiler asyncProfiler, String args)
             throws IllegalArgumentException, IOException {
-        LOGGER.info("async profiler execute arg:{}", arg);
-        String result = asyncProfiler.execute(arg);
+        LOGGER.info("async profiler execute args:{}", args);
+        String result = asyncProfiler.execute(args);
         return result.trim();
     }
 
+    /**
+     * start async profiler
+     * TODO file path
+     */
     public String start(AsyncProfiler asyncProfiler) throws IOException {
+        Path tempFilePath = Paths.get("/Users/bytedance/IdeaProjects/skywalking-java/skywalking-output", taskId + getFileExtension());
+        tempFile = Files.createFile(tempFilePath);
+        StringBuilder startArgs = new StringBuilder();
+        startArgs.append("start").append(COMMA);
+        if (StringUtil.isEmpty(execArgs)) {
+            startArgs.append(execArgs).append(COMMA);
+        }
+        startArgs.append("file=").append(tempFile.toAbsolutePath());
 
-        tempFile = Files.createFile(Paths.get("/Users/bytedance/IdeaProjects/skywalking-java/skywalking-output/" + taskId, ""));
-        execArgs = execArgs + "file=" + tempFile.toAbsolutePath();
-        return execute(asyncProfiler, execArgs);
+        return execute(asyncProfiler, startArgs.toString());
     }
 
     /**
-     * stop async-profiler and dump profile data
+     * stop async-profiler and get dump file inputStream
      */
     public InputStream stop(AsyncProfiler asyncProfiler) throws IOException {
         LOGGER.info("async profiler process stop and dump file");
-        asyncProfiler.stop();
-//        return dumpJFR();
-        if (AsyncProfilerDataFormatType.JFR.equals(dataFormat)) {
-            return getJFRInputStream();
-        } else if (AsyncProfilerDataFormatType.HTML.equals(dataFormat)) {
-            return null;
-        } else {
-            return null;
-        }
+        String stopArgs = "stop" + COMMA + "file=" + tempFile.toAbsolutePath();
+        execute(asyncProfiler, stopArgs);
+        return getProfilerFileInputStream();
     }
 
     private String getFileExtension() {
@@ -92,14 +98,14 @@ public class AsyncProfilerTask {
             case HTML:
                 return ".html";
             default:
-                return ".html";
+                return ".txt";
         }
     }
 
     /**
      * need manually close
      */
-    private InputStream getJFRInputStream() throws IOException {
+    private InputStream getProfilerFileInputStream() throws IOException {
         File file = tempFile.toFile();
         file.deleteOnExit();
         return Files.newInputStream(file.toPath());

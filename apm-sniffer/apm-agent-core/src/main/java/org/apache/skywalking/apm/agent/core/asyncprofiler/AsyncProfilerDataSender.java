@@ -104,7 +104,7 @@ public class AsyncProfilerDataSender implements BootService, GRPCChannelListener
         // send bin data
         byte[] data = new byte[DATA_CHUNK_SIZE];
         int byteRead;
-        while ((byteRead = fileDataInputStream.read()) != -1) {
+        while ((byteRead = fileDataInputStream.read(data)) != -1) {
             asyncProfilerData = AsyncProfilerData.newBuilder()
                     .setContent(ByteString.copyFrom(data, 0, byteRead))
                     .build();

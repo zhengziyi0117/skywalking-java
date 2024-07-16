@@ -42,7 +42,7 @@ public class AsyncProfilerTaskExecutionService implements BootService {
 
     private static final AsyncProfiler ASYNC_PROFILER = PyroscopeAsyncProfiler.getAsyncProfiler();
 
-    private static final String SUCCESS_RESULT = "Profiling started\n";
+    private static final String SUCCESS_RESULT = "Profiling started";
 
     // profile executor thread pool, only running one thread
     private final static ScheduledExecutorService ASYNC_PROFILE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
@@ -91,6 +91,8 @@ public class AsyncProfilerTaskExecutionService implements BootService {
             // upload file
             AsyncProfilerDataSender dataSender = ServiceManager.INSTANCE.findService(AsyncProfilerDataSender.class);
             dataSender.send(task, fileDataInputStream);
+            // close inputStream
+            fileDataInputStream.close();
         } catch (Exception e) {
             LOGGER.error("stop async profiler task error", e);
             return;
