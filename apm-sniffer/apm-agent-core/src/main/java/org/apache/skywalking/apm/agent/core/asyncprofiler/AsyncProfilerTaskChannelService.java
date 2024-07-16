@@ -41,7 +41,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.apache.skywalking.apm.agent.core.conf.Config.Collector.GRPC_UPSTREAM_TIMEOUT;
 
-
 @DefaultImplementor
 public class AsyncProfilerTaskChannelService implements BootService, Runnable, GRPCChannelListener {
     private static final ILog LOGGER = LogManager.getLogger(AsyncProfilerTaskChannelService.class);
