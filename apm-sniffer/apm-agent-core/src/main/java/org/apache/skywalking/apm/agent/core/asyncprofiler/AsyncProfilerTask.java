@@ -73,7 +73,7 @@ public class AsyncProfilerTask {
         tempFile = Files.createFile(tempFilePath);
         StringBuilder startArgs = new StringBuilder();
         startArgs.append("start").append(COMMA);
-        if (StringUtil.isEmpty(execArgs)) {
+        if (StringUtil.isNotEmpty(execArgs)) {
             startArgs.append(execArgs).append(COMMA);
         }
         startArgs.append("file=").append(tempFile.toAbsolutePath());

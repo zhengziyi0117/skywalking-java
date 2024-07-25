@@ -56,9 +56,11 @@ public class AsyncProfilerTaskExecutionService implements BootService {
     private volatile AsyncProfilerTask preAsyncProfilerTask;
 
     public void processAsyncProfilerTask(AsyncProfilerTask task) {
-        if (task.getCreateTime() > lastCommandCreateTime) {
-            lastCommandCreateTime = task.getCreateTime();
+        if (task.getCreateTime() <= lastCommandCreateTime) {
+            LOGGER.warn("get repeat task because createTime is less than lastCommandCreateTime");
+            return;
         }
+        lastCommandCreateTime = task.getCreateTime();
         LOGGER.info("add async profiler task: {}", task.getTaskId());
         // add task to list
         ASYNC_PROFILE_EXECUTOR.execute(() -> {
