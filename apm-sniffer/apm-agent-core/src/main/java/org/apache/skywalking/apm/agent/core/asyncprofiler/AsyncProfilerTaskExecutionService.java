@@ -53,7 +53,7 @@ public class AsyncProfilerTaskExecutionService implements BootService {
 
     // task schedule future
     private volatile ScheduledFuture<?> scheduledFuture;
-    private volatile AsyncProfilerTask preAsyncProfilerTask;
+    private volatile AsyncProfilerTask preTask;
 
     public void processAsyncProfilerTask(AsyncProfilerTask task) {
         if (task.getCreateTime() <= lastCommandCreateTime) {
@@ -68,15 +68,14 @@ public class AsyncProfilerTaskExecutionService implements BootService {
                 if (Objects.nonNull(scheduledFuture) && !scheduledFuture.isDone()) {
                     scheduledFuture.cancel(true);
                     // stop pre task
-                    stopAsyncProfile(preAsyncProfilerTask);
-                    preAsyncProfilerTask = null;
+                    stopAsyncProfile(preTask);
                 }
                 String result = task.start(ASYNC_PROFILER);
                 if (!SUCCESS_RESULT.equals(result)) {
                     LOGGER.error("AsyncProfilerTask start fail result:" + result);
                     return;
                 }
-                preAsyncProfilerTask = task;
+                preTask = task;
                 scheduledFuture = ASYNC_PROFILE_EXECUTOR.schedule(
                         () -> stopAsyncProfile(task), task.getDuration(), TimeUnit.SECONDS
                 );
