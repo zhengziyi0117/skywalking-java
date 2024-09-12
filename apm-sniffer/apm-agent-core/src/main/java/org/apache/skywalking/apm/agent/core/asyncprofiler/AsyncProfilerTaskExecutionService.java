@@ -45,7 +45,7 @@ public class AsyncProfilerTaskExecutionService implements BootService {
     private static final String SUCCESS_RESULT = "Profiling started";
 
     // profile executor thread pool, only running one thread
-    private final static ScheduledExecutorService ASYNC_PROFILE_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
+    private static final ScheduledExecutorService ASYNC_PROFILER_EXECUTOR = Executors.newSingleThreadScheduledExecutor(
             new DefaultNamedThreadFactory("ASYNC-PROFILING-TASK"));
 
     // last command create time, use to next query task list
@@ -53,7 +53,6 @@ public class AsyncProfilerTaskExecutionService implements BootService {
 
     // task schedule future
     private volatile ScheduledFuture<?> scheduledFuture;
-    private volatile AsyncProfilerTask preTask;
 
     public void processAsyncProfilerTask(AsyncProfilerTask task) {
         if (task.getCreateTime() <= lastCommandCreateTime) {
@@ -63,20 +62,18 @@ public class AsyncProfilerTaskExecutionService implements BootService {
         lastCommandCreateTime = task.getCreateTime();
         LOGGER.info("add async profiler task: {}", task.getTaskId());
         // add task to list
-        ASYNC_PROFILE_EXECUTOR.execute(() -> {
+        ASYNC_PROFILER_EXECUTOR.execute(() -> {
             try {
                 if (Objects.nonNull(scheduledFuture) && !scheduledFuture.isDone()) {
-                    scheduledFuture.cancel(true);
-                    // stop pre task
-                    stopAsyncProfile(preTask);
+                    LOGGER.info("AsyncProfilerTask already running");
+                    return;
                 }
                 String result = task.start(ASYNC_PROFILER);
                 if (!SUCCESS_RESULT.equals(result)) {
                     LOGGER.error("AsyncProfilerTask start fail result:" + result);
                     return;
                 }
-                preTask = task;
-                scheduledFuture = ASYNC_PROFILE_EXECUTOR.schedule(
+                scheduledFuture = ASYNC_PROFILER_EXECUTOR.schedule(
                         () -> stopAsyncProfile(task), task.getDuration(), TimeUnit.SECONDS
                 );
             } catch (IOException e) {
@@ -121,6 +118,6 @@ public class AsyncProfilerTaskExecutionService implements BootService {
 
     @Override
     public void shutdown() throws Throwable {
-        ASYNC_PROFILE_EXECUTOR.shutdown();
+        ASYNC_PROFILER_EXECUTOR.shutdown();
     }
 }

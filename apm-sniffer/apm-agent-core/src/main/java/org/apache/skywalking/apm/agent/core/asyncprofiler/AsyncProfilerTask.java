@@ -69,7 +69,7 @@ public class AsyncProfilerTask {
      * TODO file path
      */
     public String start(AsyncProfiler asyncProfiler) throws IOException {
-        Path tempFilePath = Paths.get("/Users/bytedance/IdeaProjects/skywalking-java/skywalking-output", taskId + getFileExtension());
+        Path tempFilePath = Paths.get("/home/zhengziyi/IdeaProjects/skywalking-java/skywalking-output", taskId + getFileExtension());
         tempFile = Files.createFile(tempFilePath);
         StringBuilder startArgs = new StringBuilder();
         startArgs.append("start").append(COMMA);
