@@ -21,7 +21,6 @@ package org.apache.skywalking.apm.agent.core.asyncprofiler;
 import io.pyroscope.one.profiler.AsyncProfiler;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
-import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerDataFormatType;
 import org.apache.skywalking.apm.util.StringUtil;
 
 import java.io.File;
@@ -54,8 +53,6 @@ public class AsyncProfilerTask {
      * temp File
      */
     private Path tempFile;
-
-    private AsyncProfilerDataFormatType dataFormat;
 
     private static String execute(AsyncProfiler asyncProfiler, String args)
             throws IllegalArgumentException, IOException {
@@ -92,14 +89,7 @@ public class AsyncProfilerTask {
     }
 
     private String getFileExtension() {
-        switch (dataFormat) {
-            case JFR:
-                return ".jfr";
-            case HTML:
-                return ".html";
-            default:
-                return ".txt";
-        }
+        return ".jfr";
     }
 
     /**
@@ -129,14 +119,6 @@ public class AsyncProfilerTask {
 
     public void setCreateTime(long createTime) {
         this.createTime = createTime;
-    }
-
-    public void setDataFormat(AsyncProfilerDataFormatType dataFormat) {
-        this.dataFormat = dataFormat;
-    }
-
-    public AsyncProfilerDataFormatType getDataFormat() {
-        return this.dataFormat;
     }
 
     public String getExecArgs() {

@@ -36,7 +36,6 @@ public class AsyncProfilerCommandExecutor implements CommandExecutor {
         asyncProfilerTask.setDuration(asyncProfilerTaskCommand.getDuration());
         asyncProfilerTask.setExecArgs(asyncProfilerTaskCommand.getExecArgs());
         asyncProfilerTask.setCreateTime(asyncProfilerTaskCommand.getCreateTime());
-        asyncProfilerTask.setDataFormat(asyncProfilerTaskCommand.getDataFormat());
         ServiceManager.INSTANCE.findService(AsyncProfilerTaskExecutionService.class)
                 .processAsyncProfilerTask(asyncProfilerTask);
     }

@@ -115,6 +115,7 @@ public class AsyncProfilerDataSender implements BootService, GRPCChannelListener
         AsyncProfilerMetaData metaData = AsyncProfilerMetaData.newBuilder()
                 .setService(Config.Agent.SERVICE_NAME)
                 .setServiceInstance(Config.Agent.INSTANCE_NAME)
+                .setUploadTime(System.currentTimeMillis())
                 .setTaskId(task.getTaskId())
                 .build();
         AsyncProfilerData asyncProfilerData = AsyncProfilerData.newBuilder().setMetaData(metaData).build();

@@ -20,9 +20,9 @@ package org.apache.skywalking.apm.network.trace.component.command;
 
 import org.apache.skywalking.apm.network.common.v3.Command;
 import org.apache.skywalking.apm.network.common.v3.KeyStringValuePair;
-import org.apache.skywalking.apm.network.language.asyncprofile.v3.AsyncProfilerDataFormatType;
 
 import java.util.List;
+import java.util.Objects;
 
 public class AsyncProfilerTaskCommand extends BaseCommand implements Serializable, Deserializable<AsyncProfilerTaskCommand> {
     public static final Deserializable<AsyncProfilerTaskCommand> DESERIALIZER = new AsyncProfilerTaskCommand("", "", 0, null, "", 0);
@@ -32,19 +32,20 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
     private final int duration;
     private final String execArgs;
     private final long createTime;
-    private final AsyncProfilerDataFormatType dataFormat;
 
     public AsyncProfilerTaskCommand(String serialNumber, String taskId, int duration,
-                                    AsyncProfilerDataFormatType dataFormat, String events,
-                                    String execArgs, long createTime) {
+                                    List<String> events, String execArgs, long createTime) {
         super(NAME, serialNumber);
         this.taskId = taskId;
         this.duration = duration;
         this.createTime = createTime;
-        this.dataFormat = dataFormat;
         String comma = ",";
         StringBuilder sb = new StringBuilder();
-        sb.append("event=").append(String.join(comma, events)).append(comma);
+        if (Objects.nonNull(events) && !events.isEmpty()) {
+            sb.append("event=")
+                    .append(String.join(comma, events))
+                    .append(comma);
+        }
         if (execArgs != null && !execArgs.isEmpty()) {
             sb.append(execArgs);
         }
@@ -52,12 +53,11 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
     }
 
     public AsyncProfilerTaskCommand(String serialNumber, String taskId, int duration,
-                                    AsyncProfilerDataFormatType dataFormat, String execArgs, long createTime) {
+                                    String execArgs, long createTime) {
         super(NAME, serialNumber);
         this.taskId = taskId;
         this.duration = duration;
         this.execArgs = execArgs;
-        this.dataFormat = dataFormat;
         this.createTime = createTime;
     }
 
@@ -69,7 +69,6 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
         String execArgs = null;
         long createTime = 0;
         String serialNumber = null;
-        AsyncProfilerDataFormatType dataFormat = null;
         for (final KeyStringValuePair pair : argsList) {
             if ("SerialNumber".equals(pair.getKey())) {
                 serialNumber = pair.getValue();
@@ -81,11 +80,9 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
                 execArgs = pair.getValue();
             } else if ("CreateTime".equals(pair.getKey())) {
                 createTime = Long.parseLong(pair.getValue());
-            } else if ("AsyncProfilerDataFormatType".equals(pair.getKey())) {
-                dataFormat = AsyncProfilerDataFormatType.valueOf(pair.getValue());
             }
         }
-        return new AsyncProfilerTaskCommand(serialNumber, taskId, duration, dataFormat, execArgs, createTime);
+        return new AsyncProfilerTaskCommand(serialNumber, taskId, duration, execArgs, createTime);
     }
 
     @Override
@@ -94,9 +91,7 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
         builder.addArgs(KeyStringValuePair.newBuilder().setKey("TaskId").setValue(taskId))
                 .addArgs(KeyStringValuePair.newBuilder().setKey("Duration").setValue(String.valueOf(duration)))
                 .addArgs(KeyStringValuePair.newBuilder().setKey("ExecArgs").setValue(execArgs))
-                .addArgs(KeyStringValuePair.newBuilder().setKey("CreateTime").setValue(String.valueOf(createTime)))
-                .addArgs(KeyStringValuePair.newBuilder().setKey("AsyncProfilerDataFormatType")
-                        .setValue(String.valueOf(dataFormat.toString())));
+                .addArgs(KeyStringValuePair.newBuilder().setKey("CreateTime").setValue(String.valueOf(createTime)));
         return builder;
     }
 
@@ -114,9 +109,5 @@ public class AsyncProfilerTaskCommand extends BaseCommand implements Serializabl
 
     public long getCreateTime() {
         return createTime;
-    }
-
-    public AsyncProfilerDataFormatType getDataFormat() {
-        return this.dataFormat;
     }
 }
