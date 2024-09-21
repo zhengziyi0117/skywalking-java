@@ -19,6 +19,7 @@
 package org.apache.skywalking.apm.agent.core.asyncprofiler;
 
 import io.pyroscope.one.profiler.AsyncProfiler;
+import org.apache.skywalking.apm.agent.core.conf.Config;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
 import org.apache.skywalking.apm.util.StringUtil;
@@ -63,17 +64,15 @@ public class AsyncProfilerTask {
 
     /**
      * start async profiler
-     * TODO file path
      */
     public String start(AsyncProfiler asyncProfiler) throws IOException {
-        Path tempFilePath = Paths.get("/home/zhengziyi/IdeaProjects/skywalking-java/skywalking-output", taskId + getFileExtension());
-        tempFile = Files.createFile(tempFilePath);
+        tempFile = getProfilerFilePath();
         StringBuilder startArgs = new StringBuilder();
         startArgs.append("start").append(COMMA);
         if (StringUtil.isNotEmpty(execArgs)) {
             startArgs.append(execArgs).append(COMMA);
         }
-        startArgs.append("file=").append(tempFile.toAbsolutePath());
+        startArgs.append("file=").append(tempFile.toString());
 
         return execute(asyncProfiler, startArgs.toString());
     }
@@ -81,24 +80,24 @@ public class AsyncProfilerTask {
     /**
      * stop async-profiler and get dump file inputStream
      */
-    public InputStream stop(AsyncProfiler asyncProfiler) throws IOException {
+    public File stop(AsyncProfiler asyncProfiler) throws IOException {
         LOGGER.info("async profiler process stop and dump file");
         String stopArgs = "stop" + COMMA + "file=" + tempFile.toAbsolutePath();
         execute(asyncProfiler, stopArgs);
-        return getProfilerFileInputStream();
+        return tempFile.toFile();
+    }
+
+    public Path getProfilerFilePath() throws IOException {
+        if (StringUtil.isNotEmpty(Config.AsyncProfiler.OUTPUT_PATH)) {
+            Path tempFilePath = Paths.get(Config.AsyncProfiler.OUTPUT_PATH, taskId + getFileExtension());
+            return Files.createFile(tempFilePath.toAbsolutePath());
+        } else {
+            return Files.createTempFile(taskId + getFileExtension(), taskId + getFileExtension());
+        }
     }
 
     private String getFileExtension() {
         return ".jfr";
-    }
-
-    /**
-     * need manually close
-     */
-    private InputStream getProfilerFileInputStream() throws IOException {
-        File file = tempFile.toFile();
-        file.deleteOnExit();
-        return Files.newInputStream(file.toPath());
     }
 
     public void setExecArgs(String execArgs) {

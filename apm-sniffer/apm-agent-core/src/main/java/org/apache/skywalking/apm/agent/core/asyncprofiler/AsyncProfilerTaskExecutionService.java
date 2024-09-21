@@ -27,8 +27,10 @@ import org.apache.skywalking.apm.agent.core.boot.ServiceManager;
 import org.apache.skywalking.apm.agent.core.logging.api.ILog;
 import org.apache.skywalking.apm.agent.core.logging.api.LogManager;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -85,12 +87,14 @@ public class AsyncProfilerTaskExecutionService implements BootService {
     private void stopAsyncProfile(AsyncProfilerTask task) {
         try {
             // execute stop task
-            InputStream fileDataInputStream = task.stop(ASYNC_PROFILER);
+            File dumpFile = task.stop(ASYNC_PROFILER);
+            InputStream fileDataInputStream = Files.newInputStream(dumpFile.toPath());
             // upload file
             AsyncProfilerDataSender dataSender = ServiceManager.INSTANCE.findService(AsyncProfilerDataSender.class);
             dataSender.send(task, fileDataInputStream);
             // close inputStream
             fileDataInputStream.close();
+            dumpFile.delete();
         } catch (Exception e) {
             LOGGER.error("stop async profiler task error", e);
             return;

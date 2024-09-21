@@ -88,14 +88,17 @@ public class AsyncProfilerTaskChannelService implements BootService, Runnable, G
 
     @Override
     public void boot() throws Throwable {
-        getTaskListFuture = Executors.newSingleThreadScheduledExecutor(
-                new DefaultNamedThreadFactory("AsyncProfileGetTaskService")
-        ).scheduleWithFixedDelay(
-                new RunnableWithExceptionProtection(
-                        this,
-                        t -> LOGGER.error("Query async profile task list failure.", t)
-                ), 0, Config.Collector.GET_PROFILE_TASK_INTERVAL, TimeUnit.SECONDS
-        );
+
+        if (Config.AsyncProfiler.ACTIVE) {
+            getTaskListFuture = Executors.newSingleThreadScheduledExecutor(
+                    new DefaultNamedThreadFactory("AsyncProfilerGetTaskService")
+            ).scheduleWithFixedDelay(
+                    new RunnableWithExceptionProtection(
+                            this,
+                            t -> LOGGER.error("Query async profiler task list failure.", t)
+                    ), 0, Config.Collector.GET_PROFILE_TASK_INTERVAL, TimeUnit.SECONDS
+            );
+        }
     }
 
     @Override

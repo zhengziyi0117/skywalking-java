@@ -23,6 +23,7 @@ import org.apache.skywalking.apm.agent.core.asyncprofiler.AsyncProfilerTaskExecu
 import org.apache.skywalking.apm.agent.core.boot.ServiceManager;
 import org.apache.skywalking.apm.agent.core.commands.CommandExecutionException;
 import org.apache.skywalking.apm.agent.core.commands.CommandExecutor;
+import org.apache.skywalking.apm.agent.core.conf.Config;
 import org.apache.skywalking.apm.network.trace.component.command.AsyncProfilerTaskCommand;
 import org.apache.skywalking.apm.network.trace.component.command.BaseCommand;
 
@@ -33,7 +34,8 @@ public class AsyncProfilerCommandExecutor implements CommandExecutor {
 
         AsyncProfilerTask asyncProfilerTask = new AsyncProfilerTask();
         asyncProfilerTask.setTaskId(asyncProfilerTaskCommand.getTaskId());
-        asyncProfilerTask.setDuration(asyncProfilerTaskCommand.getDuration());
+        int duration = Math.min(Config.AsyncProfiler.MAX_DURATION, asyncProfilerTaskCommand.getDuration());
+        asyncProfilerTask.setDuration(duration);
         asyncProfilerTask.setExecArgs(asyncProfilerTaskCommand.getExecArgs());
         asyncProfilerTask.setCreateTime(asyncProfilerTaskCommand.getCreateTime());
         ServiceManager.INSTANCE.findService(AsyncProfilerTaskExecutionService.class)
