@@ -94,7 +94,9 @@ public class AsyncProfilerTaskExecutionService implements BootService {
             dataSender.send(task, fileDataInputStream);
             // close inputStream
             fileDataInputStream.close();
-            dumpFile.delete();
+            if (!dumpFile.delete()) {
+                LOGGER.warn("delete async profiler dump file failed");
+            }
         } catch (Exception e) {
             LOGGER.error("stop async profiler task error", e);
             return;
